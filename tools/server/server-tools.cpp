@@ -527,9 +527,15 @@ public:
     // cwd, if non-empty, is used to resolve relative paths and as the working directory for run()
     explicit tools_io_isolate(std::string cwd = "") : cwd(std::move(cwd)) {}
 
-    // resolves `path` against `cwd` if `path` is relative and `cwd` is set; otherwise returns `path` unchanged.
+    // resolves `~` against the isolate's $HOME, then resolves `path` against `cwd` if relative.
     // isolate paths are always POSIX-style ('/'), regardless of host OS.
     std::string resolve(const std::string & path) const override {
+        if (!path.empty() && path[0] == '~') {
+            if (path.size() > 1 && path[1] != '/') return path;  // not a home-relative path
+            const std::string & h = get_home();
+            if (h.empty()) return path;
+            return h + path.substr(1);
+        }
         if (cwd.empty() || (!path.empty() && path[0] == '/')) {
             return path;
         }
@@ -650,6 +656,18 @@ protected:
 
 private:
     std::string cwd;
+    mutable std::string home;  // cached isolate $HOME, resolved lazily
+
+    const std::string & get_home() const {
+        if (home.empty()) {
+            auto res = exec({"sh", "-c", "cd ~ && pwd"}, 256, true);
+            if (res.exit_code == 0 && !res.timed_out) {
+                home = res.output;
+                if (!home.empty() && home.back() == '\n') home.pop_back();
+            }
+        }
+        return home;
+    }
 
     // set the working directory in the command itself, no `-w` equivalent exists on every transport
     // auxiliary calls do not need this, they use the absolute paths from resolve()
