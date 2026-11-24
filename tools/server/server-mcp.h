@@ -23,6 +23,7 @@ struct server_mcp_server_config {
     std::map<std::string, std::string> env; // merged over the parent env
     std::string cwd;
     int timeout_ms = 30000; // per-tool-call timeout
+    std::vector<std::string> allowed_tools;
 
     // throw on parse errors; missing "mcpServers" yields an empty list; entries without a "command" are skipped
     static std::vector<server_mcp_server_config> parse_from_json(const std::string & json_str);

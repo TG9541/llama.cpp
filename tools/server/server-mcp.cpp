@@ -161,6 +161,11 @@ std::vector<server_mcp_server_config> server_mcp_server_config::parse_cursor_for
                 sc.env[k] = v.get<std::string>();
             }
         }
+        if (cfg.contains("allowed_tools") && cfg.at("allowed_tools").is_array()) {
+            for (const auto & tool_name : cfg.at("allowed_tools")) {
+                sc.allowed_tools.push_back(tool_name.get<std::string>());
+            }
+        }
 
         if (sc.command.empty()) {
             SRV_WRN("MCP server '%s' has no command, skipping\n", name.c_str());
@@ -728,7 +733,21 @@ void server_mcp::start(const common_params & params) {
         };
         auto tools = t->list_tools(should_stop);
         SRV_INF("MCP warmup: '%s' discovered %zu tools\n", cfg.name.c_str(), tools.size());
-        discovered.insert(discovered.end(), tools.begin(), tools.end());
+        for (auto& tool_def : tools) {
+            bool is_allowed = true;
+            if (!cfg.allowed_tools.empty()) {
+                is_allowed = false;
+                for (const auto& name : cfg.allowed_tools) {
+                    if (tool_def.name == name) {
+                        is_allowed = true;
+                        break;
+                    }
+                }
+            }
+            if (is_allowed) {
+                discovered.push_back(std::move(tool_def));
+            }
+        }
         t->close();
     }
 

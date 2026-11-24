@@ -763,3 +763,34 @@ def test_mcp_dropped_client_sends_cancellation():
     finally:
         server.stop()
         os.unlink(log_path)
+
+
+def test_mcp_tool_whitelist():
+    """Tools not in the allowed_tools list should not be registered."""
+    global server
+    mcp_json = _mcp_config_json({
+        "echo": {
+            "command": sys.executable,
+            "args": [MCP_ECHO_SERVER],
+            "allowed_tools": ["echo"]
+        }
+    })
+    server = _start_server_with_mcp(mcp_json)
+
+    try:
+        res = server.make_request("GET", "/tools")
+        assert res.status_code == 200, res.body
+        tools = res.body
+
+        def get_tool_name(t):
+            return t.get("tool", "") or t.get("definition", {}).get("function", {}).get("name", "")
+
+        tool_names = {get_tool_name(t) for t in tools}
+        
+        # 'echo_echo' should be present
+        assert "echo_echo" in tool_names, f"Expected echo_echo in {tool_names}"
+        
+        # 'echo_add' should NOT be present
+        assert "echo_add" not in tool_names, f"echo_add should be filtered out, but was found in {tool_names}"
+    finally:
+        server.stop()
